@@ -1,5 +1,5 @@
 pyrofork==2.3.45
-tgcrypto
+# tgcrypto  # Optional: speeds up encryption, requires C++ compiler on Windows
 motor
 Flask==1.1.2
 gunicorn==20.1.0

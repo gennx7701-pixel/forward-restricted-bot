@@ -26,9 +26,11 @@ class Bot(Client):
             BotCommand("help", "Get help guide"),
             BotCommand("login", "Login with Telegram"),
             BotCommand("logout", "Logout account"),
+            BotCommand("settings", "Forward settings"),
+            BotCommand("batch", "Batch download"),
             BotCommand("premium", "Premium membership info"),
             BotCommand("redeem", "Redeem premium code"),
-            BotCommand("cancel", "Cancel batch download")
+            BotCommand("cancel", "Cancel download")
         ])
         
         print('='*50)

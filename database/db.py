@@ -16,7 +16,23 @@ class Database:
             is_premium = False,
             premium_expiry = None,
             downloads_today = 0,
-            last_download_date = None
+            last_download_date = None,
+            # Forward settings
+            forward_destination = None,  # Channel ID for forwarding
+            custom_caption = None,  # Custom caption template
+            custom_thumbnail = None,  # File ID of custom thumbnail
+            filename_suffix = None,  # Suffix for filename
+            index_count = 0,  # Counter for {IndexCount} variable
+            # File type filters (all enabled by default)
+            filter_text = True,
+            filter_document = True,
+            filter_video = True,
+            filter_photo = True,
+            filter_audio = True,
+            filter_voice = True,
+            filter_animation = True,
+            filter_sticker = True,
+            filter_poll = True
         )
     
     async def add_user(self, id, name):
@@ -98,7 +114,7 @@ class Database:
         
         # Check limits
         is_premium_user = await self.is_premium(user_id)
-        limit = 100 if is_premium_user else 10  # Premium: 100/day, Free: 10/day
+        limit = 1000 if is_premium_user else 10  # Premium: 1000/day, Free: 10/day
         
         if downloads_today >= limit:
             return False  # Limit exceeded
@@ -121,5 +137,128 @@ class Database:
         if user.get('last_download_date') == today:
             return user.get('downloads_today', 0)
         return 0
+    
+    # Forward settings methods
+    async def set_forward_destination(self, user_id, channel_id):
+        """Set forward destination channel"""
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'forward_destination': channel_id}}
+        )
+    
+    async def get_forward_destination(self, user_id):
+        """Get forward destination channel"""
+        user = await self.col.find_one({'id': int(user_id)})
+        return user.get('forward_destination') if user else None
+    
+    async def set_custom_caption(self, user_id, caption):
+        """Set custom caption template"""
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'custom_caption': caption}}
+        )
+    
+    async def get_custom_caption(self, user_id):
+        """Get custom caption template"""
+        user = await self.col.find_one({'id': int(user_id)})
+        return user.get('custom_caption') if user else None
+    
+    async def set_custom_thumbnail(self, user_id, file_id):
+        """Set custom thumbnail file ID"""
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'custom_thumbnail': file_id}}
+        )
+    
+    async def get_custom_thumbnail(self, user_id):
+        """Get custom thumbnail file ID"""
+        user = await self.col.find_one({'id': int(user_id)})
+        return user.get('custom_thumbnail') if user else None
+    
+    async def set_filename_suffix(self, user_id, suffix):
+        """Set filename suffix"""
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'filename_suffix': suffix}}
+        )
+    
+    async def get_filename_suffix(self, user_id):
+        """Get filename suffix"""
+        user = await self.col.find_one({'id': int(user_id)})
+        return user.get('filename_suffix') if user else None
+    
+    async def increment_index_count(self, user_id):
+        """Increment and return index count"""
+        result = await self.col.find_one_and_update(
+            {'id': int(user_id)},
+            {'$inc': {'index_count': 1}},
+            return_document=True
+        )
+        return result.get('index_count', 1) if result else 1
+    
+    async def reset_index_count(self, user_id):
+        """Reset index count to 0"""
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'index_count': 0}}
+        )
+    
+    async def set_index_count(self, user_id, count):
+        """Set index count to specific number"""
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'index_count': int(count)}}
+        )
+    
+    async def get_index_count(self, user_id):
+        """Get current index count"""
+        user = await self.col.find_one({'id': int(user_id)})
+        return user.get('index_count', 0) if user else 0
+    
+    async def get_user_settings(self, user_id):
+        """Get all user settings"""
+        user = await self.col.find_one({'id': int(user_id)})
+        if not user:
+            return None
+        return {
+            'forward_destination': user.get('forward_destination'),
+            'custom_caption': user.get('custom_caption'),
+            'custom_thumbnail': user.get('custom_thumbnail'),
+            'filename_suffix': user.get('filename_suffix'),
+            'index_count': user.get('index_count', 0),
+            # File type filters
+            'filter_text': user.get('filter_text', True),
+            'filter_document': user.get('filter_document', True),
+            'filter_video': user.get('filter_video', True),
+            'filter_photo': user.get('filter_photo', True),
+            'filter_audio': user.get('filter_audio', True),
+            'filter_voice': user.get('filter_voice', True),
+            'filter_animation': user.get('filter_animation', True),
+            'filter_sticker': user.get('filter_sticker', True),
+            'filter_poll': user.get('filter_poll', True)
+        }
+    
+    # Filter methods
+    async def toggle_filter(self, user_id, filter_name):
+        """Toggle a file type filter on/off"""
+        user = await self.col.find_one({'id': int(user_id)})
+        if not user:
+            return False
+        
+        current_value = user.get(filter_name, True)
+        new_value = not current_value
+        
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {filter_name: new_value}}
+        )
+        return new_value
+    
+    async def get_filter_status(self, user_id, filter_name):
+        """Get status of a specific filter"""
+        user = await self.col.find_one({'id': int(user_id)})
+        if not user:
+            return True  # Default enabled
+        return user.get(filter_name, True)
 
 db = Database(DB_URI, DB_NAME)

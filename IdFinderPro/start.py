@@ -62,10 +62,10 @@ async def downstatus(client, statusfile, message, chat):
         await asyncio.sleep(3)
       
     while os.path.exists(statusfile):
-        with open(statusfile, "r") as downread:
+        with open(statusfile, "r", encoding="utf-8") as downread:
             txt = downread.read()
         try:
-            await client.edit_message_text(chat, message.id, f"📥 **Downloading:** {txt}")
+            await client.edit_message_text(chat, message.id, txt)
             await asyncio.sleep(10)
         except:
             await asyncio.sleep(5)
@@ -79,19 +79,107 @@ async def upstatus(client, statusfile, message, chat):
 
         await asyncio.sleep(3)      
     while os.path.exists(statusfile):
-        with open(statusfile, "r") as upread:
+        with open(statusfile, "r", encoding="utf-8") as upread:
             txt = upread.read()
         try:
-            await client.edit_message_text(chat, message.id, f"📤 **Uploading:** {txt}")
+            await client.edit_message_text(chat, message.id, txt)
             await asyncio.sleep(10)
         except:
             await asyncio.sleep(5)
 
 
-# progress writer
+# progress writer with detailed info
+import time as time_module
+progress_data = {}
+
+# Helper function to apply custom caption
+def apply_custom_caption(template, original_caption, filename, index_count):
+    """Apply custom caption template with variables"""
+    if not template:
+        return original_caption
+    
+    caption = template
+    caption = caption.replace("{caption}", original_caption or "")
+    caption = caption.replace("{filename}", filename or "")
+    caption = caption.replace("{IndexCount}", str(index_count))
+    
+    return caption
+
+# Helper function to add suffix to filename
+def add_suffix_to_filename(filename, suffix):
+    """Add suffix to filename before extension with space"""
+    if not suffix or not filename:
+        return filename
+    
+    # Split filename and extension
+    if "." in filename:
+        name, ext = filename.rsplit(".", 1)
+        return f"{name} {suffix} .{ext}"  # Space before extension
+    else:
+        return f"{filename}{suffix}"
+
 def progress(current, total, message, type):
-    with open(f'{message.id}{type}status.txt', "w") as fileup:
-        fileup.write(f"{current * 100 / total:.1f}%")
+    msg_id = message.id
+    
+    # Initialize progress tracking
+    if msg_id not in progress_data:
+        progress_data[msg_id] = {
+            'start_time': time_module.time(),
+            'last_current': 0,
+            'last_time': time_module.time()
+        }
+    
+    # Calculate speed
+    current_time = time_module.time()
+    time_diff = current_time - progress_data[msg_id]['last_time']
+    
+    if time_diff >= 1:  # Update speed every second
+        bytes_diff = current - progress_data[msg_id]['last_current']
+        speed = bytes_diff / time_diff if time_diff > 0 else 0
+        progress_data[msg_id]['last_current'] = current
+        progress_data[msg_id]['last_time'] = current_time
+    else:
+        # Use previous speed calculation
+        bytes_diff = current - progress_data[msg_id]['last_current']
+        speed = bytes_diff / time_diff if time_diff > 0 else 0
+    
+    # Format sizes
+    def format_size(size):
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024:
+                return f"{size:.2f}{unit}"
+            size /= 1024
+        return f"{size:.2f}TB"
+    
+    # Format speed
+    speed_text = format_size(speed) + "/s" if speed > 0 else "Calculating..."
+    
+    # Calculate percentage
+    percentage = (current * 100 / total) if total > 0 else 0
+    
+    # Create horizontal progress bar
+    bar_length = 20
+    filled_length = int(bar_length * current // total) if total > 0 else 0
+    bar = '█' * filled_length + '░' * (bar_length - filled_length)
+    
+    # Create status message
+    action = "📥 Downloading" if type == "down" else "📤 Uploading"
+    status_text = f"""{action} in Progress
+
+[{bar}] {percentage:.1f}%
+
+📦 Processed: {format_size(current)} out of {format_size(total)}
+⚡ Speed: {speed_text}
+
+Hit /cancel to cancel the process"""
+    
+    with open(f'{msg_id}{type}status.txt', "w", encoding="utf-8") as fileup:
+        fileup.write(status_text)
+    
+    # Cleanup progress data when complete
+    if current >= total:
+        if msg_id in progress_data:
+            del progress_data[msg_id]
 
 
 # start command
@@ -107,7 +195,7 @@ async def send_start(client: Client, message: Message):
     
     login_emoji = "✅" if user_data else "❌"
     premium_emoji = "💎" if is_premium_user else "🆓"
-    limit = 100 if is_premium_user else 10
+    limit = 1000 if is_premium_user else 10
     
     start_text = f"""👋 **Welcome {message.from_user.first_name}!**
 
@@ -161,14 +249,87 @@ async def send_help(client: Client, message: Message):
         reply_markup=reply_markup
     )
 
+# batch command
+@Client.on_message(filters.command(["batch"]))
+async def send_batch_help(client: Client, message: Message):
+    batch_text = """**📦 Batch Download Guide**
+
+Download multiple files at once by specifying a range!
+
+**📝 How to Use:**
+
+**1️⃣ Single File:**
+Send the link normally:
+`https://t.me/channel/123`
+
+**2️⃣ Multiple Files (Batch):**
+Add a range to the link:
+`https://t.me/channel/100-150`
+
+This will download messages from 100 to 150!
+
+**✨ Examples:**
+
+📌 Download 10 files:
+`https://t.me/mychannel/1-10`
+
+📌 Download 50 files:
+`https://t.me/c/1234567890/500-550`
+
+📌 Download from private channel:
+`https://t.me/c/1234567890/1-100`
+
+**⚠️ Important Notes:**
+
+• Files are downloaded one by one
+• Use `/cancel` to stop batch download
+• Spaces in range don't matter: `1 - 10` works!
+• Premium users: 1000 downloads/day
+• Free users: 10 downloads/day
+
+**💡 Pro Tip:**
+Start with small ranges to test, then do larger batches!
+
+**Need more help?** Use /help"""
+
+    buttons = [[
+        InlineKeyboardButton("📖 Full Help", callback_data="help"),
+        InlineKeyboardButton("🏠 Main Menu", callback_data="start")
+    ]]
+    await message.reply(batch_text, reply_markup=InlineKeyboardMarkup(buttons))
+
 # cancel command
 @Client.on_message(filters.command(["cancel"]))
 async def send_cancel(client: Client, message: Message):
-    batch_temp.IS_BATCH[message.from_user.id] = True
-    await client.send_message(
-        chat_id=message.chat.id, 
-        text="✅ **Batch Download Cancelled Successfully!**\n\nYou can now start a new download."
-    )
+    user_id = message.from_user.id
+    
+    # Check if there's an active process
+    if user_id in batch_temp.IS_BATCH and batch_temp.IS_BATCH[user_id] == False:
+        # Process is running, cancel it
+        batch_temp.IS_BATCH[user_id] = True
+        
+        # Clean up any status files
+        try:
+            import glob
+            for file in glob.glob(f"*{message.id}*status.txt"):
+                try:
+                    os.remove(file)
+                except:
+                    pass
+        except:
+            pass
+        
+        await client.send_message(
+            chat_id=message.chat.id, 
+            text="✅ **Process Cancelled Successfully!**\n\n⏹️ Your download/upload has been stopped.\n\n💡 You can now start a new download."
+        )
+    else:
+        # No process is running
+        await client.send_message(
+            chat_id=message.chat.id, 
+            text="ℹ️ **No Active Process**\n\n⚠️ There is no download or upload process currently running.\n\n💡 Send me a Telegram post link to start downloading."
+        )
+    
 
 # Admin command
 @Client.on_message(filters.command(["admin"]) & filters.user(ADMINS))
@@ -206,6 +367,10 @@ async def callback_handler(client: Client, query):
     from IdFinderPro.strings import HELP_TXT, DOWNLOAD_HELP, PREMIUM_HELP, COMMANDS_HELP
     data = query.data
     
+    # Ignore settings callbacks (handled by settings.py)
+    if data.startswith(("set_", "reset_", "clear_", "back_to_settings", "toggle_filter_")) or data == "reset_index_to_zero":
+        return
+    
     if data == "check_joined":
         # Check if user joined
         is_subscribed = await check_force_sub(client, query.from_user.id)
@@ -241,7 +406,7 @@ async def callback_handler(client: Client, query):
         # Redirect to premium menu
         is_premium_user = await db.is_premium(query.from_user.id)
         downloads_today = await db.get_download_count(query.from_user.id)
-        limit = 100 if is_premium_user else 10
+        limit = 1000 if is_premium_user else 10
         
         if is_premium_user:
             user = await db.col.find_one({'id': query.from_user.id})
@@ -258,10 +423,10 @@ async def callback_handler(client: Client, query):
 ✅ You have Premium!
 
 {expiry_text}
-Usage: {downloads_today}/100 today
+Usage: {downloads_today}/1000 today
 
 **Benefits:**
-✅ 100 downloads/day
+✅ 1000 downloads/day
 ✅ Priority support
 ✅ Faster processing"""
             buttons = [[InlineKeyboardButton("🏠 Main Menu", callback_data="start")]]
@@ -272,14 +437,14 @@ Usage: {downloads_today}/100 today
 **Usage:** {downloads_today}/10 today
 
 **Premium Benefits:**
-✅ 100 downloads/day (vs 10)
+✅ 1000 downloads/day (vs 10)
 ✅ Priority support
 ✅ Faster processing
 
 **Pricing:**
-• ₹20 (≈ 0.24 USDT) - 1 Day
-• ₹50 (≈ 0.60 USDT) - 7 Days  
-• ₹100 (≈ 1.20 USDT) - 30 Days
+• ₹10 - 1 Day
+• ₹40 - 7 Days  
+• ₹100 - 30 Days
 
 **How to Purchase:**
 Contact admin @tataa_sumo with your preferred plan. Admin will provide payment details and redeem code."""
@@ -453,14 +618,14 @@ async def save(client: Client, message: Message):
         can_download = await db.check_and_update_downloads(message.from_user.id)
         if not can_download:
             is_premium_user = await db.is_premium(message.from_user.id)
-            limit = 100 if is_premium_user else 10
+            limit = 1000 if is_premium_user else 10
             buttons = [[InlineKeyboardButton("💎 Upgrade to Premium", callback_data="premium_info")]]
             return await message.reply(
                 f"**❌ Daily Limit Reached!**\n\n"
                 f"You've used all {limit} downloads for today.\n\n"
                 f"**Upgrade to Premium:**\n"
                 f"• Free: 10/day\n"
-                f"• Premium: 100/day\n\n"
+                f"• Premium: 1000/day\n\n"
                 f"Use /premium to upgrade!",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
@@ -526,6 +691,19 @@ async def save(client: Client, message: Message):
 
             # wait time (reduced for faster processing)
             await asyncio.sleep(1)
+        
+        # Batch completed - send completion message
+        batch_size = toID - fromID + 1
+        if batch_size > 1:  # Only show for batch downloads (more than 1 file)
+            await client.send_message(
+                message.chat.id,
+                f"✅ **Batch Download Complete!**\n\n"
+                f"📦 **Total Files:** {batch_size}\n"
+                f"📝 **Range:** {fromID} to {toID}\n\n"
+                f"All files have been processed successfully! 🎉",
+                reply_to_message_id=message.id
+            )
+        
         batch_temp.IS_BATCH[message.from_user.id] = True
 
 
@@ -538,104 +716,401 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
     chat = message.chat.id
     if batch_temp.IS_BATCH.get(message.from_user.id): return 
     if "Text" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        filter_text = settings.get('filter_text', True) if settings else True
+        
+        # For text messages, just use the original text (no caption template)
+        text_to_send = msg.text
+        
         try:
-            await client.send_message(chat, msg.text, entities=msg.entities, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+            # Send to user first
+            await client.send_message(chat, text_to_send, entities=msg.entities, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_text:
+                try:
+                    await client.send_message(forward_dest, text_to_send, entities=msg.entities, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward text to channel: {e}")
+            
             return 
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
             return 
 
+    if "Poll" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        filter_poll = settings.get('filter_poll', True) if settings else True
+        
+        try:
+            # Forward poll to user (polls cannot be "sent", only forwarded)
+            await client.forward_messages(chat, chatid, msgid, drop_author=True)
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_poll:
+                try:
+                    await client.forward_messages(forward_dest, chatid, msgid, drop_author=True)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward poll to channel: {e}")
+            
+            return
+        except Exception as e:
+            if ERROR_MESSAGE == True:
+                await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+            return
+
     smsg = await client.send_message(message.chat.id, '📥 **Downloading...**', reply_to_message_id=message.id)
     asyncio.create_task(downstatus(client, f'{message.id}downstatus.txt', smsg, chat))
     try:
-        file = await acc.download_media(msg, progress=progress, progress_args=[message,"down"])
-        os.remove(f'{message.id}downstatus.txt')
+        # Download with original filename (no temp prefix)
+        file = await acc.download_media(msg, file_name="downloads/", progress=progress, progress_args=[message,"down"])
+        # Clean up download status file
+        if os.path.exists(f'{message.id}downstatus.txt'):
+            try:
+                os.remove(f'{message.id}downstatus.txt')
+            except:
+                pass
     except Exception as e:
+        # Clean up on download failure
+        if os.path.exists(f'{message.id}downstatus.txt'):
+            try:
+                os.remove(f'{message.id}downstatus.txt')
+            except:
+                pass
         if ERROR_MESSAGE == True:
             await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML) 
         return await smsg.delete()
-    if batch_temp.IS_BATCH.get(message.from_user.id): return 
+    if batch_temp.IS_BATCH.get(message.from_user.id):
+        # Batch cancelled, cleanup downloaded file
+        await asyncio.sleep(0.5)
+        for attempt in range(3):
+            try:
+                if os.path.exists(file):
+                    os.remove(file)
+                break
+            except:
+                if attempt < 2:
+                    await asyncio.sleep(1)
+        return 
     asyncio.create_task(upstatus(client, f'{message.id}upstatus.txt', smsg, chat))
 
     if msg.caption:
         caption = msg.caption
     else:
         caption = None
-    if batch_temp.IS_BATCH.get(message.from_user.id): return 
+    if batch_temp.IS_BATCH.get(message.from_user.id):
+        # Batch cancelled before upload, cleanup file
+        await asyncio.sleep(0.5)
+        for attempt in range(3):
+            try:
+                if os.path.exists(file):
+                    os.remove(file)
+                break
+            except:
+                if attempt < 2:
+                    await asyncio.sleep(1)
+        return 
             
     if "Document" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        custom_caption_template = settings.get('custom_caption') if settings else None
+        custom_thumb_id = settings.get('custom_thumbnail') if settings else None
+        suffix = settings.get('filename_suffix') if settings else None
+        filter_document = settings.get('filter_document', True) if settings else True
+        
+        # Get original filename
+        original_filename = msg.document.file_name if msg.document else None
+        
+        # Apply suffix to filename if set
+        final_filename = original_filename
+        if suffix and original_filename:
+            final_filename = add_suffix_to_filename(original_filename, suffix)
+            # Rename file
+            if os.path.exists(file):
+                new_file_path = os.path.join(os.path.dirname(file), final_filename)
+                try:
+                    os.rename(file, new_file_path)
+                    file = new_file_path
+                except:
+                    pass
+        
+        # Get thumbnail
         try:
-            ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
+            # Use custom thumbnail if set, otherwise use original
+            if custom_thumb_id:
+                ph_path = await client.download_media(custom_thumb_id)
+            else:
+                ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
         except:
             ph_path = None
         
+        # Apply custom caption if set (use final_filename which includes suffix)
+        if custom_caption_template:
+            index_count = await db.increment_index_count(message.from_user.id)
+            final_caption = apply_custom_caption(custom_caption_template, caption, final_filename, index_count)
+        else:
+            final_caption = caption
+        
         try:
-            await client.send_document(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            # Send to user first
+            await client.send_document(chat, file, thumb=ph_path, caption=final_caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_document:
+                try:
+                    await client.send_document(forward_dest, file, thumb=ph_path, caption=final_caption, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward to channel: {e}")
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path != None: os.remove(ph_path)
+        
+        if ph_path != None: 
+            try:
+                os.remove(ph_path)
+            except:
+                pass
         
 
     elif "Video" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        custom_caption_template = settings.get('custom_caption') if settings else None
+        custom_thumb_id = settings.get('custom_thumbnail') if settings else None
+        suffix = settings.get('filename_suffix') if settings else None
+        filter_video = settings.get('filter_video', True) if settings else True
+        
+        # Get original filename
+        original_filename = msg.video.file_name if msg.video else None
+        
+        # Apply suffix to filename if set
+        final_filename = original_filename
+        if suffix and original_filename:
+            final_filename = add_suffix_to_filename(original_filename, suffix)
+            # Rename file
+            if os.path.exists(file):
+                new_file_path = os.path.join(os.path.dirname(file), final_filename)
+                try:
+                    os.rename(file, new_file_path)
+                    file = new_file_path
+                except:
+                    pass
+        
+        # Get thumbnail
         try:
-            ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
+            # Use custom thumbnail if set, otherwise use original
+            if custom_thumb_id:
+                ph_path = await client.download_media(custom_thumb_id)
+            else:
+                ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
         except:
             ph_path = None
         
+        # Apply custom caption if set (use final_filename which includes suffix)
+        if custom_caption_template:
+            index_count = await db.increment_index_count(message.from_user.id)
+            final_caption = apply_custom_caption(custom_caption_template, caption, final_filename, index_count)
+        else:
+            final_caption = caption
+        
         try:
-            await client.send_video(chat, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            # Send to user first
+            await client.send_video(chat, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=ph_path, caption=final_caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_video:
+                try:
+                    await client.send_video(forward_dest, file, duration=msg.video.duration, width=msg.video.width, height=msg.video.height, thumb=ph_path, caption=final_caption, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward to channel: {e}")
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        if ph_path != None: os.remove(ph_path)
+        
+        if ph_path != None: 
+            try:
+                os.remove(ph_path)
+            except:
+                pass
 
     elif "Animation" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        filter_animation = settings.get('filter_animation', True) if settings else True
+        
         try:
+            # Send to user first
             await client.send_animation(chat, file, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_animation:
+                try:
+                    await client.send_animation(forward_dest, file, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward animation to channel: {e}")
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         
     elif "Sticker" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        filter_sticker = settings.get('filter_sticker', True) if settings else True
+        
         try:
+            # Send to user first
             await client.send_sticker(chat, file, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_sticker:
+                try:
+                    await client.send_sticker(forward_dest, file, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward sticker to channel: {e}")
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)     
 
     elif "Voice" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        filter_voice = settings.get('filter_voice', True) if settings else True
+        
         try:
+            # Send to user first
             await client.send_voice(chat, file, caption=caption, caption_entities=msg.caption_entities, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_voice:
+                try:
+                    await client.send_voice(forward_dest, file, caption=caption, caption_entities=msg.caption_entities, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward voice to channel: {e}")
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
 
     elif "Audio" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        custom_caption_template = settings.get('custom_caption') if settings else None
+        suffix = settings.get('filename_suffix') if settings else None
+        filter_audio = settings.get('filter_audio', True) if settings else True
+        
+        # Get original filename
+        original_filename = msg.audio.file_name if msg.audio else None
+        
+        # Apply suffix to filename if set
+        final_filename = original_filename
+        if suffix and original_filename:
+            final_filename = add_suffix_to_filename(original_filename, suffix)
+            # Rename file
+            if os.path.exists(file):
+                new_file_path = os.path.join(os.path.dirname(file), final_filename)
+                try:
+                    os.rename(file, new_file_path)
+                    file = new_file_path
+                except:
+                    pass
+        
+        # Get thumbnail
         try:
             ph_path = await acc.download_media(msg.audio.thumbs[0].file_id)
         except:
             ph_path = None
+        
+        # Apply custom caption if set (use final_filename which includes suffix)
+        if custom_caption_template:
+            index_count = await db.increment_index_count(message.from_user.id)
+            final_caption = apply_custom_caption(custom_caption_template, caption, final_filename, index_count)
+        else:
+            final_caption = caption
 
         try:
-            await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])   
+            # Send to user first
+            await client.send_audio(chat, file, thumb=ph_path, caption=final_caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML, progress=progress, progress_args=[message,"up"])
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_audio:
+                try:
+                    await client.send_audio(forward_dest, file, thumb=ph_path, caption=final_caption, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward to channel: {e}")
         except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
         
-        if ph_path != None: os.remove(ph_path)
+        if ph_path != None: 
+            try:
+                os.remove(ph_path)
+            except:
+                pass
 
     elif "Photo" == msg_type:
+        # Get user settings for forwarding
+        settings = await db.get_user_settings(message.from_user.id)
+        forward_dest = settings.get('forward_destination') if settings else None
+        custom_caption_template = settings.get('custom_caption') if settings else None
+        filter_photo = settings.get('filter_photo', True) if settings else True
+        
+        # Apply custom caption if set
+        if custom_caption_template:
+            index_count = await db.increment_index_count(message.from_user.id)
+            final_caption = apply_custom_caption(custom_caption_template, caption, "photo", index_count)
+        else:
+            final_caption = caption
+        
         try:
-            await client.send_photo(chat, file, caption=caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
-        except:
+            # Send to user first
+            await client.send_photo(chat, file, caption=final_caption, reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
+            
+            # Forward to destination channel if set and filter is enabled
+            if forward_dest and filter_photo:
+                try:
+                    await client.send_photo(forward_dest, file, caption=final_caption, parse_mode=enums.ParseMode.HTML)
+                except Exception as e:
+                    print(f"[WARNING] Failed to forward to channel: {e}")
+        except Exception as e:
             if ERROR_MESSAGE == True:
                 await client.send_message(message.chat.id, f"❌ **Error:** `{e}`\n\n💡 If the error persists, try `/logout` and `/login` again.", reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML)
     
+    # Cleanup status file and downloaded file
     if os.path.exists(f'{message.id}upstatus.txt'): 
-        os.remove(f'{message.id}upstatus.txt')
-        os.remove(file)
+        try:
+            os.remove(f'{message.id}upstatus.txt')
+        except:
+            pass
+    
+    # Give Windows time to release file handle
+    await asyncio.sleep(0.5)
+    
+    # Retry file deletion with multiple attempts (Windows file locking issue)
+    for attempt in range(5):
+        try:
+            if os.path.exists(file):
+                os.remove(file)
+            break
+        except PermissionError:
+            if attempt < 4:
+                await asyncio.sleep(1)  # Wait and retry
+            else:
+                print(f"[WARNING] Could not delete file: {file}")
+        except Exception as e:
+            print(f"[WARNING] File deletion error: {e}")
+            break
+    
     await client.delete_messages(message.chat.id,[smsg.id])
 
 
@@ -686,5 +1161,11 @@ def get_message_type(msg: pyrogram.types.messages_and_media.message.Message):
     try:
         msg.text
         return "Text"
+    except:
+        pass
+
+    try:
+        msg.poll
+        return "Poll"
     except:
         pass
