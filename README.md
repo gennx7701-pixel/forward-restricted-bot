@@ -39,12 +39,14 @@
 A high-performance Telegram bot designed to download restricted content from private channels, groups, and bots with advanced features like:
 
 - 🔐 **Secure Authentication** - Session-based login
-- 💎 **Premium System** - 1000 downloads/day for premium users
+- 💎 **Premium System** - Unlimited downloads for premium users
 - 📤 **Channel Forwarding** - Auto-upload with custom settings
 - 📝 **Smart Captions** - Dynamic variables support
 - 🎬 **Media Control** - Custom thumbnails & metadata
 - 🏷️ **File Filters** - Choose which content types to forward
-- ⚡ **Batch Processing** - Download up to 50+ files at once
+- ⚡ **Batch Processing** - Download up to 20,000 files at once (Premium)
+- 📦 **Send as Document/Media** - Toggle upload type
+- ♻️ **Word Replacement** - Auto replace/remove words in captions and filenames
 
 **Made by:** [@tataa_sumo](https://t.me/tataa_sumo)  
 **Channel:** [@idfinderpro](https://t.me/idfinderpro)
@@ -62,8 +64,8 @@ A high-performance Telegram bot designed to download restricted content from pri
 ### 💎 **Premium Membership**
 | Plan | Downloads/Day | Features |
 |------|:-------------:|----------|
-| **Free** | 10 | Basic downloads |
-| **Premium** | 1000 | Advanced settings + Channel forwarding |
+| **Free** | 10 | Basic downloads, 10 files/batch |
+| **Premium** | Unlimited | Advanced settings + 20,000 files/batch |
 
 **Pricing:**
 - ₹10 - 1 Day
@@ -100,6 +102,8 @@ A high-performance Telegram bot designed to download restricted content from pri
 - ✅ Custom PDF thumbnails
 - ✅ Filename suffixes (copyright protection)
 - ✅ Space-formatted suffixes: `Name @Suffix .mp4`
+- ✅ **Send as Document/Media toggle** - Choose upload method
+- ✅ **Word Replacement** - Auto replace/remove words
 
 ### 🏷️ **Content Filters**
 Choose which file types to forward:
@@ -125,6 +129,14 @@ Choose which file types to forward:
 - ✅ Manage premium users
 - ✅ View statistics
 - ✅ Broadcast messages
+
+### 🚀 **Performance Optimizations**
+- ✅ Per-file download counting (accurate tracking)
+- ✅ Batch size limits (10 free, 20,000 premium)
+- ✅ Download timeout protection (10 minutes)
+- ✅ Improved cancellation (<5 seconds)
+- ✅ Multi-user file isolation (no conflicts)
+- ✅ Automatic file cleanup on cancel/error
 
 ---
 
@@ -200,9 +212,9 @@ Choose which file types to forward:
 
 | Duration | INR | USDT (approx) | Benefits |
 |----------|:---:|:-------------:|----------|
-| **1 Day** | ₹10 | ~$0.12 | 1000 downloads/day |
-| **7 Days** | ₹40 | ~$0.48 | 7000 downloads total |
-| **30 Days** | ₹100 | ~$1.20 | 30,000 downloads total |
+| **1 Day** | ₹10 | ~$0.12 | Unlimited downloads |
+| **7 Days** | ₹40 | ~$0.48 | Unlimited downloads |
+| **30 Days** | ₹100 | ~$1.20 | Unlimited downloads |
 
 ### **Payment Methods**
 - UPI
@@ -325,7 +337,10 @@ ERROR_MESSAGE = True
     "filter_voice": true,
     "filter_animation": true,
     "filter_sticker": true,
-    "filter_poll": true
+    "filter_poll": true,
+    "send_as_document": false,
+    "replace_caption_words": "find:replace",
+    "replace_filename_words": "find:replace"
 }
 ```
 
@@ -548,8 +563,8 @@ This occurs on Windows with file operations. The bot now includes:
 
 | User Type | Limit |
 |-----------|:-----:|
-| **Free Users** | 10 downloads/day |
-| **Premium Users** | 1000 downloads/day |
+| **Free Users** | 10 downloads/day, 10 files/batch |
+| **Premium Users** | Unlimited downloads, 20,000 files/batch |
 
 **Resets:** Daily at midnight (UTC)  
 **Tracking:** Per user basis
@@ -612,10 +627,16 @@ This project is for **educational purposes only**.
 - ✅ **Index Counting** - Auto-increment numbers
 - ✅ **Horizontal Progress Bars** - Real-time speed display
 - ✅ **Bulk Code Generation** - Generate up to 50 codes at once
-- ✅ **Premium Limits** - Updated to 1000/day
-- ✅ **Enhanced Help System** - Better user guidance
-- ✅ **Poll Support** - Forward and handle polls
 - ✅ **Voice/Animation/Sticker Support** - Complete media coverage
+- ✅ **Send as Document/Media Toggle** - Control upload type
+- ✅ **Word Replacement** - Auto replace/remove words in captions/filenames
+- ✅ **Unlimited Premium** - Changed from 1000/day to unlimited
+- ✅ **Batch Size Limits** - 10 free, 20,000 premium
+- ✅ **Download Timeout** - 10-minute protection against stuck downloads
+- ✅ **Improved Cancellation** - Stops within 5 seconds
+- ✅ **File Cleanup** - Auto-cleanup on cancel/error/timeout
+- ✅ **Multi-user Isolation** - User-specific filenames prevent conflicts
+- ✅ **Time-Until-Reset** - Shows when free users can download again
 
 ### **Version 2.0**
 - Premium membership system
