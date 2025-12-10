@@ -33,8 +33,8 @@ async def settings_menu(client: Client, message: Message):
     # Get replace words settings
     replace_caption = settings.get('replace_caption_words') if settings else None
     replace_filename = settings.get('replace_filename_words') if settings else None
-    replace_caption_status = f"✅ {replace_caption[:20]}..." if replace_caption and len(replace_caption) > 20 else (f"✅ {replace_caption}" if replace_caption else "❌ Not Set")
-    replace_filename_status = f"✅ {replace_filename[:20]}..." if replace_filename and len(replace_filename) > 20 else (f"✅ {replace_filename}" if replace_filename else "❌ Not Set")
+    replace_caption_status = "✅ Set" if replace_caption else "❌ Not Set"
+    replace_filename_status = "✅ Set" if replace_filename else "❌ Not Set"
     
     settings_text = f"""**⚙️ Forward Settings**
 

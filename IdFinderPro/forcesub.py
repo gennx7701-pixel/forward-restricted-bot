@@ -217,8 +217,11 @@ async def handle_forcesub_input(client: Client, message: Message):
             
             # Check if bot is admin
             try:
-                bot_member = await client.get_chat_member(chat.id, (await client.get_me()).id)
-                if bot_member.status not in ["administrator", "creator"]:
+                bot = await client.get_me()
+                bot_member = await client.get_chat_member(chat.id, bot.id)
+                # Convert enum to string for comparison
+                status_str = str(bot_member.status).lower()
+                if "administrator" not in status_str and "creator" not in status_str and "owner" not in status_str:
                     return await message.reply("❌ **Bot is not admin in this channel!**\n\nPlease make the bot admin first.")
             except:
                 return await message.reply("❌ **Could not verify bot admin status!**\n\nMake sure bot is admin in the channel.")

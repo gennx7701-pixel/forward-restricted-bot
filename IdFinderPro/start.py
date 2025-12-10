@@ -180,7 +180,8 @@ def apply_word_replacements(text, replacement_pattern):
         
         # Create pattern that matches the word with various separators
         # Matches: word at start/end, or surrounded by space, comma, hyphen, underscore
-        pattern = r'(?:^|(?<=[\\s,\\-_]))' + find_escaped + r'(?=[\\s,\\-_]|$)'
+        # FIX: Use single backslash in raw string (not double)
+        pattern = r'(?:^|(?<=[\s,\-_]))' + find_escaped + r'(?=[\s,\-_]|$)'
         
         # Replace all occurrences
         result = re.sub(pattern, replace, result, flags=re.IGNORECASE)
@@ -1636,8 +1637,8 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         custom_thumb_id = settings.get('custom_thumbnail') if settings else None
         suffix = settings.get('filename_suffix') if settings else None
         filter_document = settings.get('filter_document', True) if settings else True
-        replace_caption_words = await db.get_replace_caption_words(message.from_user.id)
-        replace_filename_words = await db.get_replace_filename_words(message.from_user.id)
+        replace_caption_words = settings.get('replace_caption_words') if settings else None
+        replace_filename_words = settings.get('replace_filename_words') if settings else None
         
         # Get original filename
         original_filename = msg.document.file_name if msg.document and msg.document.file_name else None
@@ -1717,28 +1718,32 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         custom_thumb_id = settings.get('custom_thumbnail') if settings else None
         suffix = settings.get('filename_suffix') if settings else None
         filter_video = settings.get('filter_video', True) if settings else True
-        replace_caption_words = await db.get_replace_caption_words(message.from_user.id)
-        replace_filename_words = await db.get_replace_filename_words(message.from_user.id)
+        replace_caption_words = settings.get('replace_caption_words') if settings else None
+        replace_filename_words = settings.get('replace_filename_words') if settings else None
         send_as_document = await db.get_send_as_document(message.from_user.id)
         
         # Get original filename
         original_filename = msg.video.file_name if msg.video else None
         
-        # Apply word replacements to filename if pattern is set, then suffix
+        # Start with original filename
         final_filename = original_filename
-        if replace_filename_words and original_filename:
-            final_filename = apply_word_replacements(original_filename, replace_filename_words)
-        # Apply suffix to filename if set
-        if suffix and original_filename:
-            final_filename = add_suffix_to_filename(original_filename, suffix)
-            # Rename file
-            if os.path.exists(file):
-                new_file_path = os.path.join(os.path.dirname(file), final_filename)
-                try:
-                    os.rename(file, new_file_path)
-                    file = new_file_path
-                except:
-                    pass
+        
+        # Apply word replacements to filename if pattern is set
+        if replace_filename_words and final_filename:
+            final_filename = apply_word_replacements(final_filename, replace_filename_words)
+        
+        # Apply suffix to filename if set (use final_filename to preserve replacements)
+        if suffix and final_filename:
+            final_filename = add_suffix_to_filename(final_filename, suffix)
+        
+        # Rename file to final filename if different
+        if final_filename and final_filename != original_filename and os.path.exists(file):
+            new_file_path = os.path.join(os.path.dirname(file), final_filename)
+            try:
+                os.rename(file, new_file_path)
+                file = new_file_path
+            except:
+                pass
         
         # Get thumbnail
         try:
@@ -1863,25 +1868,32 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         custom_caption_template = settings.get('custom_caption') if settings else None
         suffix = settings.get('filename_suffix') if settings else None
         filter_audio = settings.get('filter_audio', True) if settings else True
-        replace_caption_words = await db.get_replace_caption_words(message.from_user.id)
-        replace_filename_words = await db.get_replace_filename_words(message.from_user.id)
+        replace_caption_words = settings.get('replace_caption_words') if settings else None
+        replace_filename_words = settings.get('replace_filename_words') if settings else None
         send_as_document = await db.get_send_as_document(message.from_user.id)
         
         # Get original filename
         original_filename = msg.audio.file_name if msg.audio else None
         
-        # Apply suffix to filename if set
+        # Start with original filename
         final_filename = original_filename
-        if suffix and original_filename:
-            final_filename = add_suffix_to_filename(original_filename, suffix)
-            # Rename file
-            if os.path.exists(file):
-                new_file_path = os.path.join(os.path.dirname(file), final_filename)
-                try:
-                    os.rename(file, new_file_path)
-                    file = new_file_path
-                except:
-                    pass
+        
+        # Apply word replacements to filename if pattern is set
+        if replace_filename_words and final_filename:
+            final_filename = apply_word_replacements(final_filename, replace_filename_words)
+        
+        # Apply suffix to filename if set (use final_filename to preserve replacements)
+        if suffix and final_filename:
+            final_filename = add_suffix_to_filename(final_filename, suffix)
+        
+        # Rename file to final filename if different
+        if final_filename and final_filename != original_filename and os.path.exists(file):
+            new_file_path = os.path.join(os.path.dirname(file), final_filename)
+            try:
+                os.rename(file, new_file_path)
+                file = new_file_path
+            except:
+                pass
         
         # Get thumbnail
         try:
@@ -1928,7 +1940,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         forward_dest = settings.get('forward_destination') if settings else None
         custom_caption_template = settings.get('custom_caption') if settings else None
         filter_photo = settings.get('filter_photo', True) if settings else True
-        replace_caption_words = await db.get_replace_caption_words(message.from_user.id)
+        replace_caption_words = settings.get('replace_caption_words') if settings else None
         send_as_document = await db.get_send_as_document(message.from_user.id)
         
         # Apply custom caption if set
@@ -1937,6 +1949,10 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             final_caption = apply_custom_caption(custom_caption_template, caption, "photo", index_count)
         else:
             final_caption = caption
+        
+        # Apply word replacements to caption if pattern is set
+        if replace_caption_words and final_caption:
+            final_caption = apply_word_replacements(final_caption, replace_caption_words)
         
         try:
             # Ensure the downloaded file has a proper image extension

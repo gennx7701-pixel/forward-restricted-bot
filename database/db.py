@@ -236,6 +236,9 @@ class Database:
             'custom_thumbnail': user.get('custom_thumbnail'),
             'filename_suffix': user.get('filename_suffix'),
             'index_count': user.get('index_count', 0),
+            # Replace words settings
+            'replace_caption_words': user.get('replace_caption_words'),
+            'replace_filename_words': user.get('replace_filename_words'),
             # File type filters
             'filter_text': user.get('filter_text', True),
             'filter_document': user.get('filter_document', True),
