@@ -519,52 +519,49 @@ async def callback_handler(client: Client, query):
         return
     
     if data == "start":
-        # Delete old message and send fresh start message
+        # Delete old message
         try:
             await query.message.delete()
         except:
             pass
         
-        # Send fresh start message
+        # Replicate exact /start command behavior
+        user_data = await db.get_session(query.from_user.id)
         is_premium_user = await db.is_premium(query.from_user.id)
         downloads_today = await db.get_download_count(query.from_user.id)
-        login_status = "✅ Logged In" if await db.user_exists(query.from_user.id) else "❌ Not Logged In"
-        plan_status = "💎 Premium" if is_premium_user else "🆓 Free"
         
-        text = f"""**🔒 RESTRICTED CONTENT DOWNLOAD BOT**
-
-👋 Welcome {query.from_user.first_name}!
-
-I can help you download and forward restricted content from Telegram channels, groups, and bots.
-
-**📊 Your Status:**
-• Login: {login_status}
-• Plan: {plan_status}
-• Downloads: {downloads_today}/{'999999' if is_premium_user else '10'} today
-
-**🚀 Quick Start:**
-1️⃣ Use `/login` to authenticate
-2️⃣ Send me any Telegram post link
-3️⃣ Get your content instantly!
-
-**📚 Need Help?** Use `/help` for detailed guide
-
-**✨ Features:**
-• Download from private channels
-• Batch download support
-• Auto file cleanup
-• Fast and reliable"""
+        login_emoji = "✅" if user_data else "❌"
+        premium_emoji = "💎" if is_premium_user else "🆓"
+        limit = "Unlimited" if is_premium_user else 10
         
-        buttons = [
-            [InlineKeyboardButton("📚 Help", callback_data="help"),
-             InlineKeyboardButton("💎 Premium", callback_data="premium_info")],
-            [InlineKeyboardButton("⚙️ Settings", callback_data="settings"),
-             InlineKeyboardButton("👤 Login", url="https://my.telegram.org/auth")]
-        ]
+        start_text = f"""👋 **Welcome {query.from_user.first_name}!**
+
+**📥 Restricted Content Download Bot**
+
+{login_emoji} Login: {'Yes' if user_data else 'No - Use /login'}
+{premium_emoji} Plan: {'Premium' if is_premium_user else 'Free'}
+📊 Usage: {downloads_today}/{limit} downloads today
+
+**Quick Start:**
+1. Must join @{FORCE_SUB_CHANNEL}
+2. Use /login to authenticate
+3. Send any Telegram post link
+4. Get your content!
+
+**Commands:** Use /help
+"""
+        
+        buttons = [[
+            InlineKeyboardButton("📖 Help", callback_data="help"),
+            InlineKeyboardButton("💎 Premium", callback_data="premium_info")
+        ],[
+            InlineKeyboardButton("👨‍💻 Developer", url="https://t.me/tataa_sumo"),
+            InlineKeyboardButton("📢 Channel", url=f"https://t.me/{FORCE_SUB_CHANNEL}")
+        ]]
         
         await client.send_message(
             query.from_user.id,
-            text,
+            start_text,
             reply_markup=InlineKeyboardMarkup(buttons)
         )
         await query.answer()
@@ -679,7 +676,7 @@ Choose the duration that works best for you:
         buttons = [
             [InlineKeyboardButton(f"📅 1 Day - ₹{pricing_1day_inr} / ${pricing_1day_usd}", callback_data="premium_payment_1day")],
             [InlineKeyboardButton(f"📅 7 Days - ₹{pricing_7day_inr} / ${pricing_7day_usd}", callback_data="premium_payment_7day")],
-            [InlineKeyboardButton(f"📅 30 Days - ₹{pricing_30day_inr} / ${pricing_30day_usd} Recommended", callback_data="premium_payment_30day")],
+            [InlineKeyboardButton(f"📅 30 Days - ₹{pricing_30day_inr} / ${pricing_30day_usd} (Recommended)", callback_data="premium_payment_30day")],
             [InlineKeyboardButton("🔙 Back", callback_data="premium_info")]
         ]
         
