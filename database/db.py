@@ -454,5 +454,46 @@ class Database:
         """Clear all UPI details"""
         upi_col = self.db.upi_details
         await upi_col.delete_one({'_id': 'upi'})
+    
+    # Banned users methods
+    async def ban_user(self, user_id, reason=None):
+        """Ban a user from using the bot"""
+        import time
+        banned_col = self.db.banned_users
+        await banned_col.update_one(
+            {'user_id': int(user_id)},
+            {'$set': {
+                'user_id': int(user_id),
+                'reason': reason,
+                'banned_at': time.time()
+            }},
+            upsert=True
+        )
+    
+    async def unban_user(self, user_id):
+        """Unban a user"""
+        banned_col = self.db.banned_users
+        result = await banned_col.delete_one({'user_id': int(user_id)})
+        return result.deleted_count > 0
+    
+    async def is_banned(self, user_id):
+        """Check if user is banned"""
+        banned_col = self.db.banned_users
+        banned = await banned_col.find_one({'user_id': int(user_id)})
+        return banned is not None
+    
+    async def get_ban_info(self, user_id):
+        """Get ban info for a user"""
+        banned_col = self.db.banned_users
+        return await banned_col.find_one({'user_id': int(user_id)})
+    
+    async def get_all_banned_users(self):
+        """Get all banned users"""
+        banned_col = self.db.banned_users
+        cursor = banned_col.find({})
+        banned_users = []
+        async for user in cursor:
+            banned_users.append(user)
+        return banned_users
 
 db = Database(DB_URI, DB_NAME)

@@ -1241,6 +1241,17 @@ To use this bot, you need to login with your Telegram account.
 
 @Client.on_message(filters.text & filters.private)
 async def save(client: Client, message: Message):
+    # Check if user is banned FIRST
+    if await db.is_banned(message.from_user.id):
+        ban_info = await db.get_ban_info(message.from_user.id)
+        reason = ban_info.get('reason', 'No reason provided') if ban_info else 'No reason provided'
+        await message.reply(
+            "🚫 **You are banned from using this bot!**\n\n"
+            f"**Reason:** {reason}\n\n"
+            "📩 **Contact admin for unban:** @tataa_sumo"
+        )
+        return
+    
     # Handle invite links
     if "/+" in message.text or "/joinchat/" in message.text:
         user_data = await db.get_session(message.from_user.id)
